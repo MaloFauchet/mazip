@@ -48,7 +48,6 @@ int create_archive(int argc, char** argv) {
         }
         file_nb += count_files_recursively(argv[i]);
     }
-    // printf("File nb : %d\n", file_nb);
 
     // Get a new file handler
     FILE *f = get_new_file(archive_name);
