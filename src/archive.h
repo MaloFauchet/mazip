@@ -22,7 +22,6 @@ int unzip_archive(int argc, char** argv);
 
 int construct_file(FILE *f);
 
-
 // Ecrit le beginning magic number, retourne 0 si succes
 int write_beg_magic(FILE *f);
 

@@ -1,9 +1,11 @@
 #include "utils.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <dirent.h>
+#include <errno.h>
 
 void help() {
     printf("\thelp : To display this message\n");
@@ -12,13 +14,6 @@ void help() {
     printf("\n");
     printf("zip options:\n");
     printf("\t-f --force-write : Allow overwriting an existing file for the archive\n");
-}
-
-int file_exists(char* file_name) {
-    if (access(file_name, F_OK) == 0) {
-        return 1; // if it exists
-    }
-    return 0;
 }
 
 int is_directory(char *file_name) {
@@ -82,4 +77,53 @@ int count_files_recursively(char* file_name) {
     closedir(dr);
     printf("file_number = %d\n", file_number);
     return file_number;
+}
+
+int create_dir(char *name, int exist_ok) {
+    int rc;
+
+    rc = mkdir(name, S_IRWXU);
+    if (rc != 0 && errno != EEXIST) 
+    {
+        perror("mkdir");
+        return 1;
+    }
+    if (exist_ok == 0 && rc != 0 && errno == EEXIST)
+        return 2;
+
+    return 0;
+}
+
+int create_dir_tree(char *file_path, int exist_ok) {
+    int i = 0;
+    int file_path_len = strlen(file_path);
+
+    int current_dir_idx = 0;
+    char *current_dir = (char *)malloc(sizeof(char)*file_path_len+1);
+    while (file_path[i] != '\0' && i <= file_path_len) {
+        char current_char = file_path[i];
+        i++;
+
+        if (current_char == '/') {
+            current_dir[current_dir_idx] = '\0';
+
+            if (create_dir(current_dir, exist_ok) != 0) {
+                return 1;
+            }
+            
+            current_dir[current_dir_idx] = '/';
+            current_dir_idx++;
+            continue;
+        }
+
+        current_dir[current_dir_idx] = current_char;
+        current_dir_idx++;
+    }
+
+    free(current_dir);
+    return 0;
+}
+
+int file_exists(char *file_path) {
+    return access(file_path, F_OK) == 0;
 }

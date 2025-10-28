@@ -12,7 +12,7 @@ const char EOF_MAGIC[EOF_MAGIC_SIZE] = "EOF ENCODE BY MALO FAUCHET";
 int create_archive(int argc, char** argv) {
     // if there is no archive name
     if (argc <= 2) {
-        printf("Error : no archive name given.\nUsage :\n");
+        fprintf(stderr, "Error : no archive name given.\nUsage :\n");
         help();
         return 1;
     }
@@ -23,14 +23,15 @@ int create_archive(int argc, char** argv) {
 
     // if there are no file given
     if (argc <= 3) {
-        printf("Error : no file to put in archive given.\nUsage :\n");
+        fprintf(stderr, "Error : no file to put in archive given.\n");
+        printf("Usage :\n");
         help();
         return 2;
     }
 
     // if the archive already exists
     if (file_exists(archive_name) && (!list_contains(argv, argc, "-f") && !list_contains(argv, argc, "--force-write"))) {
-        printf("Error : the archive already exists as another file. Can't overwrite it.\n");
+        fprintf(stderr, "Error : the archive already exists as another file. Can't overwrite it.\n");
         return 3;
     }
 
@@ -42,7 +43,7 @@ int create_archive(int argc, char** argv) {
     int file_nb = 0;
     for (i = 0; i < argc-3; i++) {
         if (!file_exists(argv[i])) {
-            printf("Error: %s not found.\n", argv[i]);
+            fprintf(stderr, "Error: %s not found.\n", argv[i]);
             return 4;
         }
         file_nb += count_files_recursively(argv[i]);
@@ -71,9 +72,6 @@ int create_archive(int argc, char** argv) {
 }
 
 int write_file_to_archive(FILE *f, char *file_name) {
-    printf("\nwrite_file_to_archive with file_name = %s\n", file_name);
-    // printf("is_directory(file_name) = %d\n", is_directory(file_name));
-
     if (is_directory(file_name) != 0) {
         struct dirent *de;
         DIR *dr = opendir(file_name);
@@ -95,7 +93,6 @@ int write_file_to_archive(FILE *f, char *file_name) {
                 return -1;
             }
             snprintf(new_file_name, need, "%s/%s", file_name, de->d_name);
-            printf("new_file_name = %s\n", new_file_name);
             int ret = write_file_to_archive(f, new_file_name);
             free(new_file_name);
             if (ret != 0) {
@@ -139,14 +136,27 @@ int write_file_to_archive(FILE *f, char *file_name) {
 }
 
 int unzip_archive(int argc, char** argv) {
-    // int ret_code;
+    // if there is no archive name
+    if (argc <= 2) {
+        fprintf(stderr, "Error : no archive name given.\n");
+        printf("Usage :\n");
+        help();
+        return 1;
+    }
+
+    char *archive_name = argv[2];
+    if (!file_exists(archive_name)) {
+        fprintf(stderr, "Error: \'%s\' archive was not found.\n", archive_name);
+        fprintf(stderr, "Exiting...\n");
+        return -1;
+    }
 
     // open the archive
     FILE *archive = fopen(argv[2], "rb");
 
     // check for magic archive beginning number
     if (read_beg_magic(archive) != 0) {
-        printf("Error: Broken archive.\n");
+        fprintf(stderr, "Error: Broken archive.\n");
         return -1;
     }
 
@@ -154,7 +164,7 @@ int unzip_archive(int argc, char** argv) {
     uint32_t nb_files;
     size_t read = fread(&nb_files, 1, sizeof(uint32_t), archive);
     if (read != sizeof(uint32_t)) {
-        printf("Error: Broken archive.\n");
+        fprintf(stderr, "Error: Broken archive.\n");
         return -1;
     }
 
@@ -162,12 +172,12 @@ int unzip_archive(int argc, char** argv) {
     uint32_t nb_file_constructed;
     for (nb_file_constructed = 0; nb_file_constructed < nb_files; nb_file_constructed++) {
         if (construct_file(archive) != 0) {
-            printf("Error: Broken archive.\n");
+            fprintf(stderr, "Error: Broken archive.\n");
             return -1;
         }
         if (read_end_of_any_file_magic(archive) != 0) {
-            printf("Error: Broken archive.\n");
-            printf("Wrong EOAF magic number.\n");
+            fprintf(stderr, "Error: Broken archive.\n");
+            fprintf(stderr, "Wrong EOAF magic number.\n");
             return -1;
         }
     }
@@ -182,22 +192,24 @@ int construct_file(FILE *f) {
     uint16_t file_name_size;
     size_t read = fread(&file_name_size, 1, sizeof(uint16_t), f);
     if (read != sizeof(uint16_t)) {
-        printf("Error: Broken archive.\n");
+        fprintf(stderr, "Error: Broken archive.\n");
         return -1;
     }
 
     // read the file name (allocate room for terminating NUL)
     char *file_name = malloc((size_t)file_name_size + 1);
     if (!file_name) {
-        printf("Error: Out of memory.\n");
+        fprintf(stderr, "Error: Out of memory.\n");
         return -1;
     }
     if (fread(file_name, 1, file_name_size, f) != file_name_size) {
         free(file_name);
-        printf("Error: Broken archive.\n");
+        fprintf(stderr, "Error: Broken archive.\n");
         return -1;
     }
     file_name[file_name_size] = '\0'; // ensure NUL-terminated
+    create_dir_tree(file_name, 1);
+    FILE *file = get_new_file(file_name);
 
     printf("Extracting %s\n", file_name);
 
@@ -205,7 +217,7 @@ int construct_file(FILE *f) {
     uint64_t file_size;
     read = fread(&file_size, 1, sizeof(uint64_t), f);
     if (read != sizeof(uint64_t)) {
-        printf("Error: Broken archive.\n");
+        fprintf(stderr, "Error: Broken archive.\n");
         return -1;
     }
 
@@ -218,9 +230,9 @@ int construct_file(FILE *f) {
         size_t got = fread(buffer, 1, to_read, f);
         if (got == 0) {
             if (feof(f)) {
-                printf("Error: Broken archive (unexpected EOF).\n");
+                fprintf(stderr, "Error: Broken archive (unexpected EOF).\n");
             } else {
-                printf("Error: Read failure.\n");
+                fprintf(stderr, "Error: Read failure.\n");
             }
             free(file_name);
             return -1;
@@ -228,14 +240,10 @@ int construct_file(FILE *f) {
 
         // Process `got` bytes from buffer here
         // e.g. verify, checksum, skip, etc.
-        for (size_t i = 0; i < got; i++) {
-            printf("%c", buffer[i]);
-        }
+        fwrite(buffer, 1, got, file);
         remaining -= got;
     }
-
     free(file_name);
-
     return 0;
 }
 

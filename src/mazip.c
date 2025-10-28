@@ -22,7 +22,7 @@ int main(int argc, char** argv) {
         // printf("unzipping archive\n");
         return_code = unzip_archive(argc, argv);
     } else {
-        printf("Unknown command: %s\nUsage:\n", argv[1]);
+        fprintf(stderr, "Unknown command: %s\nUsage:\n", argv[1]);
         help();
         return_code = 1;
     }
